@@ -2,8 +2,11 @@ package com.ruben.hexagonal.infrastructure.adapters.output.persistence;
 
 import com.ruben.hexagonal.application.ports.out.TaskRepositoryPort;
 import com.ruben.hexagonal.domain.models.Task;
+import com.ruben.hexagonal.infrastructure.adapters.input.rest.request.TaskRequest;
+import com.ruben.hexagonal.infrastructure.adapters.output.persistence.entity.TaskEntity;
 import com.ruben.hexagonal.infrastructure.adapters.output.persistence.mapper.TaskPersistenceMapper;
 import com.ruben.hexagonal.infrastructure.adapters.output.persistence.repository.TaskRepository;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -22,8 +25,8 @@ public class TaskPersistenceAdapter implements TaskRepositoryPort {
     }
 
     @Override
-    public List<Task> findAll() {
-        return taskRepository.findAll().stream()
+    public List<Task> findTask(Optional<String> search) {
+        return taskRepository.findByTitle(search).stream()
                 .map(taskPersistenceMapper::toDomain)
                 .collect(Collectors.toList());
     }
@@ -32,22 +35,57 @@ public class TaskPersistenceAdapter implements TaskRepositoryPort {
 
     @Override
     public Task save(Task task) {
-        return null;
+        TaskEntity taskEntity = taskPersistenceMapper.toEntity(task);
+        TaskEntity savedEntity = taskRepository.save(taskEntity);
+        return taskPersistenceMapper.toDomain(savedEntity);
+
     }
 
     @Override
     public Optional<Task> findById(Long id) {
-        return Optional.empty();
+        Optional<TaskEntity> foundEntity = taskRepository.findById(id);
+        return foundEntity.map(taskPersistenceMapper::toDomain);
     }
 
 
     @Override
-    public Optional<Task> update(Task task) {
+    public Optional<Task> update(Long id, TaskRequest task) {
+        Optional<TaskEntity> foundEntity = taskRepository.findById(id);
+
+        if (foundEntity.isPresent()) {
+            TaskEntity entity = foundEntity.get();
+
+            try {
+                if (task.isCompleted()) {
+                    entity.setCompleted(true); // Set completed to true
+                }
+
+                if (task.getTitle() != null) {
+                    entity.setTitle(task.getTitle());
+                }
+                if (task.getDescription() != null) {
+                    entity.setDescription(task.getDescription());
+                }
+
+                TaskEntity updatedEntity = taskRepository.save(entity);
+
+                return Optional.of(taskPersistenceMapper.toDomain(updatedEntity));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
         return Optional.empty();
     }
 
-    @Override
     public boolean deleteById(Long id) {
+        Optional<TaskEntity> foundEntity = taskRepository.findById(id);
+
+        if (foundEntity.isPresent()) {
+            taskRepository.deleteById(id);
+            return true;
+        }
+
         return false;
     }
 
