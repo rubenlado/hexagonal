@@ -1,14 +1,14 @@
 package com.ruben.hexagonal.infrastructure.adapters.output.persistence.entity;
 
-import jakarta.persistence.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Table;
 
 import java.time.LocalDateTime;
 
-@Entity
 @Table(name = "task")
 public class TaskEntity {
 
-
+    @Id
     private Long id;
 
     private String title;
@@ -60,8 +60,6 @@ public class TaskEntity {
         this.completed = completed;
     }
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     public Long getId() {
         return id;
     }

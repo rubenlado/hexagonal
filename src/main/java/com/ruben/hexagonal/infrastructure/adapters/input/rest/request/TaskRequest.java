@@ -1,6 +1,5 @@
 package com.ruben.hexagonal.infrastructure.adapters.input.rest.request;
 
-import java.time.LocalDateTime;
 
 public class TaskRequest {
     private String title;

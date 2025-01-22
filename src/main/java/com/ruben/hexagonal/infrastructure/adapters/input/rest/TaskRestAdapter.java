@@ -7,13 +7,13 @@ import com.ruben.hexagonal.infrastructure.adapters.input.rest.response.TaskRespo
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.Flux;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-@CrossOrigin(maxAge = 3600)
 @RestController
 @RequestMapping("/task")
 public class TaskRestAdapter {
@@ -25,61 +25,58 @@ public class TaskRestAdapter {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<TaskResponse> findTaskDetail(@PathVariable("id") Long id) {
-        Optional<Task> task = servicePort.findTaskDetail(id);
-
-        if (task.isPresent()) {
-            TaskResponse response = new TaskResponse(
-                    task.get().getId(),
-                    task.get().getTitle(),
-                    task.get().getDescription(),
-                    task.get().getCreationDate(),
-                    task.get().isCompleted()
-            );
-            return ResponseEntity.ok(response);
-        } else {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
-        }
+    public Mono<ResponseEntity<TaskResponse>> findTaskDetail(@PathVariable Long id) {
+        return servicePort.findTaskDetail(id)
+                .map(task -> ResponseEntity.ok(new TaskResponse(
+                        task.getId(),
+                        task.getTitle(),
+                        task.getDescription(),
+                        task.getCreationDate(),
+                        task.isCompleted()
+                )))
+                .defaultIfEmpty(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<TaskResponse> updateTask(@PathVariable("id") Long id, @RequestBody TaskRequest taskRequest) {
-
-        Optional<Task> updatedTask = servicePort.updateTask(id, taskRequest);
-        if (updatedTask.isPresent()) {
-            Task task = updatedTask.get();
-            TaskResponse response = new TaskResponse(
+    public Mono<ResponseEntity<TaskResponse>> updateTask(@PathVariable Long id, @RequestBody TaskRequest taskRequest) {
+        return servicePort.updateTask(id, taskRequest).map(task ->
+                ResponseEntity.ok(new TaskResponse(
                     task.getId(),
                     task.getTitle(),
                     task.getDescription(),
                     task.getCreationDate(),
                     task.isCompleted()
-            );
-            return ResponseEntity.ok(response);
-        } else {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
-        }
+                ))).defaultIfEmpty(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     }
 
     @DeleteMapping("/{id}")
-    public boolean deleteTask(@PathVariable("id") Long id) {
-        return servicePort.deleteTask(id);
+    public Mono<ResponseEntity<Void>> deleteTask(@PathVariable Long id) {
+        return servicePort.deleteTask(id)
+                .flatMap(deleted -> {
+                    if (deleted) {
+                        return Mono.just(ResponseEntity.noContent().build());
+                    } else {
+                        return Mono.just(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+                    }
+                });
     }
 
-    @GetMapping("")
-    public List<TaskResponse> findTasks(@RequestParam("search") Optional<String> search) {
-        return servicePort.findTask(search).stream()
-                .map(task -> new TaskResponse(
-                        task.getId(),
-                        task.getTitle(),
-                        task.getDescription(),
-                        task.getCreationDate(),
-                        task.isCompleted()))
-                .collect(Collectors.toList());
+    @GetMapping
+    public Mono<List<TaskResponse>> findTasks(@RequestParam Optional<String> search) {
+        return servicePort.findTask(search)
+                .map(tasks -> tasks.stream()
+                        .map(task -> new TaskResponse(
+                                task.getId(),
+                                task.getTitle(),
+                                task.getDescription(),
+                                task.getCreationDate(),
+                                task.isCompleted()))
+                        .collect(Collectors.toList()));
     }
 
-    @PostMapping("")
-    public TaskResponse createTask(@RequestBody TaskRequest taskRequest) {
+    @PostMapping
+    public Mono<TaskResponse> createTask(@RequestBody TaskRequest taskRequest) {
+
         Task newTask = new Task(
                 null,
                 taskRequest.getTitle(),
@@ -87,15 +84,27 @@ public class TaskRestAdapter {
                 LocalDateTime.now(),
                 false
         );
-        Task createdTask = servicePort.createTask(newTask);
-        return new TaskResponse( createdTask.getId(),
-                createdTask.getTitle(),
-                createdTask.getDescription(),
-                createdTask.getCreationDate(),
-                createdTask.isCompleted());
+
+        return servicePort.createTask(newTask).map(task -> new TaskResponse(task.getId(),
+                task.getTitle(),
+                task.getDescription(),
+                task.getCreationDate(),
+                task.isCompleted()));
+
+    }
+
+    @GetMapping("/completed")
+    public Flux<TaskResponse> getCompletedTasks() {
+        return servicePort.getCompletedTasks()
+                .map(task -> new TaskResponse(
+                        task.getId(),
+                        task.getTitle(),
+                        task.getDescription(),
+                        task.getCreationDate(),
+                        task.isCompleted()
+                ));
     }
 
 
+
 }
-
-

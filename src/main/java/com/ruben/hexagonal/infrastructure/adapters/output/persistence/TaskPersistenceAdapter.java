@@ -6,8 +6,9 @@ import com.ruben.hexagonal.infrastructure.adapters.input.rest.request.TaskReques
 import com.ruben.hexagonal.infrastructure.adapters.output.persistence.entity.TaskEntity;
 import com.ruben.hexagonal.infrastructure.adapters.output.persistence.mapper.TaskPersistenceMapper;
 import com.ruben.hexagonal.infrastructure.adapters.output.persistence.repository.TaskRepository;
-import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.Optional;
@@ -25,69 +26,63 @@ public class TaskPersistenceAdapter implements TaskRepositoryPort {
     }
 
     @Override
-    public List<Task> findTask(Optional<String> search) {
-        return taskRepository.findByTitle(search).stream()
-                .map(taskPersistenceMapper::toDomain)
-                .collect(Collectors.toList());
+    public Mono<List<Task>> findTask(Optional<String> search) {
+        return taskRepository.findByTitle(search.orElse(null))
+                .collectList()
+                .map(taskEntities ->
+                        taskEntities.stream()
+                                .map(taskPersistenceMapper::toDomain)
+                                .collect(Collectors.toList())
+                );
     }
 
-
-
     @Override
-    public Task save(Task task) {
+    public Mono<Task> save(Task task) {
         TaskEntity taskEntity = taskPersistenceMapper.toEntity(task);
-        TaskEntity savedEntity = taskRepository.save(taskEntity);
-        return taskPersistenceMapper.toDomain(savedEntity);
-
+        return taskRepository.save(taskEntity).map(taskPersistenceMapper :: toDomain);
     }
 
     @Override
-    public Optional<Task> findById(Long id) {
-        Optional<TaskEntity> foundEntity = taskRepository.findById(id);
-        return foundEntity.map(taskPersistenceMapper::toDomain);
+    public Mono<Task> findById(Long id) {
+        return taskRepository.findById(id).map(taskPersistenceMapper::toDomain);
     }
 
 
     @Override
-    public Optional<Task> update(Long id, TaskRequest task) {
-        Optional<TaskEntity> foundEntity = taskRepository.findById(id);
+    public Mono<Task> update(Long id, TaskRequest taskRequest) {
+        return taskRepository.findById(id)
+                .flatMap(entity -> {
+                    if (taskRequest.isCompleted()) {
+                        entity.setCompleted(true);
+                    }
 
-        if (foundEntity.isPresent()) {
-            TaskEntity entity = foundEntity.get();
+                    if (taskRequest.getTitle() != null) {
+                        entity.setTitle(taskRequest.getTitle());
+                    }
+                    if (taskRequest.getDescription() != null) {
+                        entity.setDescription(taskRequest.getDescription());
+                    }
 
-            try {
-                if (task.isCompleted()) {
-                    entity.setCompleted(true); // Set completed to true
-                }
-
-                if (task.getTitle() != null) {
-                    entity.setTitle(task.getTitle());
-                }
-                if (task.getDescription() != null) {
-                    entity.setDescription(task.getDescription());
-                }
-
-                TaskEntity updatedEntity = taskRepository.save(entity);
-
-                return Optional.of(taskPersistenceMapper.toDomain(updatedEntity));
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-
-        return Optional.empty();
+                    return taskRepository.save(entity)
+                            .map(taskPersistenceMapper::toDomain);
+                })
+                .switchIfEmpty(Mono.empty());
     }
 
-    public boolean deleteById(Long id) {
-        Optional<TaskEntity> foundEntity = taskRepository.findById(id);
-
-        if (foundEntity.isPresent()) {
-            taskRepository.deleteById(id);
-            return true;
-        }
-
-        return false;
+    @Override
+    public Mono<Boolean> deleteById(Long id) {
+        return taskRepository.findById(id)
+                .flatMap(taskEntity -> taskRepository.deleteById(id)
+                            .then(Mono.just(true))
+                )
+                .defaultIfEmpty(false);
     }
 
+
+    @Override
+    public Flux<Task> findCompleted() {
+        return taskRepository.findCompleted()
+                .map(taskPersistenceMapper::toDomain);
+    }
 
 }

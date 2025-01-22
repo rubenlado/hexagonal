@@ -4,8 +4,9 @@ import com.ruben.hexagonal.application.ports.in.TaskServicePort;
 import com.ruben.hexagonal.application.ports.out.TaskRepositoryPort;
 import com.ruben.hexagonal.domain.models.Task;
 import com.ruben.hexagonal.infrastructure.adapters.input.rest.request.TaskRequest;
-import com.ruben.hexagonal.infrastructure.adapters.input.rest.response.TaskResponse;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.Optional;
@@ -20,24 +21,29 @@ public class TaskService implements TaskServicePort {
     }
 
     @Override
-    public Optional<Task> findTaskDetail(Long id) {
+    public Mono<Task> findTaskDetail(Long id) {
         return repositoryPort.findById(id);
     }
 
     @Override
-    public List<Task> findTask(Optional<String> search) {
+    public Mono<List<Task>> findTask(Optional<String> search) {
         return repositoryPort.findTask(search);
     }
 
     @Override
-    public Task createTask(Task task) {
+    public Mono<Task> createTask(Task task) {
         return repositoryPort.save(task);
     }
 
     @Override
-    public Optional<Task> updateTask(Long id, TaskRequest task){ return repositoryPort.update(id, task);}
+    public Mono<Task> updateTask(Long id, TaskRequest task){ return repositoryPort.update(id, task);}
 
     @Override
-    public boolean deleteTask(Long id){ return repositoryPort.deleteById(id);}
+    public Mono<Boolean> deleteTask(Long id){ return repositoryPort.deleteById(id);}
 
+
+    @Override
+    public Flux<Task> getCompletedTasks() {
+        return repositoryPort.findCompleted();
+    };
 }
