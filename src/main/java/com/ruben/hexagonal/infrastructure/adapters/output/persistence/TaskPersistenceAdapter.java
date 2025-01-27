@@ -3,6 +3,8 @@ package com.ruben.hexagonal.infrastructure.adapters.output.persistence;
 import com.ruben.hexagonal.application.ports.out.TaskRepositoryPort;
 import com.ruben.hexagonal.domain.models.Task;
 import com.ruben.hexagonal.infrastructure.adapters.input.rest.request.TaskRequest;
+import com.ruben.hexagonal.infrastructure.adapters.input.rest.request.TaskSearchCriteria;
+import com.ruben.hexagonal.infrastructure.adapters.input.rest.response.PagedResponse;
 import com.ruben.hexagonal.infrastructure.adapters.output.persistence.entity.TaskEntity;
 import com.ruben.hexagonal.infrastructure.adapters.output.persistence.mapper.TaskPersistenceMapper;
 import com.ruben.hexagonal.infrastructure.adapters.output.persistence.repository.TaskRepository;
@@ -27,13 +29,35 @@ public class TaskPersistenceAdapter implements TaskRepositoryPort {
 
     @Override
     public Mono<List<Task>> findTask(Optional<String> search) {
-        return taskRepository.findByTitle(search.orElse(null))
+        return taskRepository.findByTitle(search)
                 .collectList()
                 .map(taskEntities ->
                         taskEntities.stream()
                                 .map(taskPersistenceMapper::toDomain)
                                 .collect(Collectors.toList())
                 );
+    }
+
+    @Override
+    public Mono<PagedResponse<Task>> findTaskPaged(TaskSearchCriteria criteria) {
+        Mono<Long> totalMono = taskRepository.countByCriteria(criteria.getSearch());
+        Mono<List<Task>> tasksMono = taskRepository.findByCriteria(criteria.getSearch(), criteria.getPageable())
+                .map(taskPersistenceMapper::toDomain)
+                .collectList();
+
+        return Mono.zip(totalMono, tasksMono)
+                .map(tuple -> {
+                    long total = tuple.getT1();
+                    List<Task> tasks = tuple.getT2();
+
+                    PagedResponse.Pagination pagination = new PagedResponse.Pagination(
+                            criteria.getPageable().getPageNumber() + 1,
+                            criteria.getPageable().getPageSize(),
+                            (int) total
+                    );
+
+                    return new PagedResponse<>(tasks, pagination);
+                });
     }
 
     @Override

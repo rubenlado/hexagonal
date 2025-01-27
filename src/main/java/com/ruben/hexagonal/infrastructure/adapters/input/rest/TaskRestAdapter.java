@@ -3,7 +3,11 @@ package com.ruben.hexagonal.infrastructure.adapters.input.rest;
 import com.ruben.hexagonal.application.ports.in.TaskServicePort;
 import com.ruben.hexagonal.domain.models.Task;
 import com.ruben.hexagonal.infrastructure.adapters.input.rest.request.TaskRequest;
+import com.ruben.hexagonal.infrastructure.adapters.input.rest.request.TaskSearchCriteria;
+import com.ruben.hexagonal.infrastructure.adapters.input.rest.response.PagedResponse;
 import com.ruben.hexagonal.infrastructure.adapters.input.rest.response.TaskResponse;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -62,8 +66,9 @@ public class TaskRestAdapter {
     }
 
     @GetMapping
-    public Mono<List<TaskResponse>> findTasks(@RequestParam Optional<String> search) {
-        return servicePort.findTask(search)
+    public Mono<List<TaskResponse>> findAllTasks(
+            @RequestParam Optional<String> search) {
+        return servicePort.findAllTasks(search)
                 .map(tasks -> tasks.stream()
                         .map(task -> new TaskResponse(
                                 task.getId(),
@@ -72,6 +77,21 @@ public class TaskRestAdapter {
                                 task.getCreationDate(),
                                 task.isCompleted()))
                         .collect(Collectors.toList()));
+    }
+
+
+    @GetMapping("/paged")
+    public Mono<PagedResponse<Task>> findTasksPaged(
+            @RequestParam Optional<String> search,
+            @RequestParam Optional<Integer> page,
+            @RequestParam Optional<Integer> perPage) {
+
+        TaskSearchCriteria criteria = new TaskSearchCriteria.Builder()
+                .search(search.orElse(null))
+                .pageable(PageRequest.of(page.orElse(1) - 1, perPage.orElse(10)))
+                .build();
+
+        return servicePort.findTask(criteria);
     }
 
     @PostMapping
